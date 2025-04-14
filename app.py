@@ -7,11 +7,16 @@ import os
 app = Flask(__name__)
 app.secret_key = "ceci_est_une_clé_secrète_à_modifier"
 
-# Remplace ici avec ton URL PostgreSQL Render
+# URL PostgreSQL Render
 DATABASE_URL = "postgresql://admin:wRGvLO4UKrNf7Uq7t0nbXoDTpKPkL4rJ@dpg-cvufunmuk2gs738bgifg-a.frankfurt-postgres.render.com/logins_pezw"
 
 def get_db():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
+
+def get_client_ip():
+    if request.headers.get("X-Forwarded-For"):
+        return request.headers.get("X-Forwarded-For").split(",")[0]
+    return request.remote_addr
 
 def init_db():
     with get_db() as conn:
@@ -37,15 +42,15 @@ def init_db():
 @app.before_request
 def track_visit():
     if request.endpoint not in ("static",):
+        ip = get_client_ip()
+        user_agent = request.headers.get("User-Agent")
+        timestamp = datetime.now().isoformat(timespec='seconds')
+
         with get_db() as conn:
             with conn.cursor() as c:
                 c.execute(
                     "INSERT INTO visits (timestamp, ip, user_agent) VALUES (%s, %s, %s)",
-                    (
-                        datetime.now().isoformat(timespec='seconds'),
-                        request.remote_addr,
-                        request.headers.get("User-Agent")
-                    )
+                    (timestamp, ip, user_agent)
                 )
             conn.commit()
 

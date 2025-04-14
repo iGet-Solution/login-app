@@ -19,8 +19,7 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     timestamp TEXT,
                     email TEXT,
-                    password TEXT,
-                    user_id TEXT
+                    password TEXT
                 )
             """)
             c.execute("""
@@ -28,11 +27,16 @@ def init_db():
                     id SERIAL PRIMARY KEY,
                     timestamp TEXT,
                     ip TEXT,
-                    user_agent TEXT,
-                    user_id TEXT
+                    user_agent TEXT
                 )
             """)
+            # Force ajout de la colonne user_id si pas encore créée
+            try:
+                c.execute("ALTER TABLE visits ADD COLUMN user_id TEXT")
+            except psycopg2.errors.DuplicateColumn:
+                conn.rollback()
         conn.commit()
+
 
 @app.before_request
 def track_visit():

